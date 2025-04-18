@@ -49,7 +49,7 @@ impl DAOFactoryContract {
         // 4. Initialize DAO with the token contract
         // We need to update our DAO contract to accept Address instead of BytesN<32>
         let dao = DAOContractClient::new(&env, &dao_address.clone());
-        dao.initialize(
+        dao.initialize_dao(
             &name,
             &description,
             &funding_goal,

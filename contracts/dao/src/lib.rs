@@ -12,7 +12,7 @@ pub struct DAOContract;
 #[contractimpl]
 impl DAOContract {
     // Called by the factory immediately after instantiation
-    pub fn initialize(
+    pub fn initialize_dao(
         env: Env,
         name: Symbol,
         description: Symbol,

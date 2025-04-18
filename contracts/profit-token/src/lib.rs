@@ -8,7 +8,7 @@ pub struct ProfitTokenContract;
 impl ProfitTokenContract {
     // Initialize the token with the DAO contract as admin
     // admin: the DAO contract address (Address::Contract)
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn initialize_ptc(env: Env, admin: Address) {
         let storage = env.storage().instance();
         // Store admin for authorization (optional)
         storage.set(b"admin", &admin);
