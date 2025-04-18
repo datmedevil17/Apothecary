@@ -80,6 +80,65 @@ impl DAOFactoryContract {
         map.get(dao_id)
     }
 
+    // Get the total number of DAOs
+    pub fn get_dao_count(env: Env) -> u64 {
+        let inst = env.storage().instance();
+        inst.get(&Bytes::from_slice(&env, b"next_dao_id"))
+            .unwrap_or(0)
+    }
+
+    // Get DAOs with pagination
+    pub fn get_daos_paginated(env: Env, start: u64, limit: u64) -> Vec<(u64, Address)> {
+        let inst = env.storage().instance();
+        let map: Map<u64, Address> = inst
+            .get(&Bytes::from_slice(&env, b"daos"))
+            .unwrap_or(Map::new(&env));
+
+        let total = inst
+            .get(&Bytes::from_slice(&env, b"next_dao_id"))
+            .unwrap_or(0);
+        let mut result: Vec<(u64, Address)> = Vec::new(&env);
+
+        let end = if start + limit > total {
+            total
+        } else {
+            start + limit
+        };
+
+        for i in start..end {
+            if let Some(dao) = map.get(i) {
+                result.push_back((i, dao));
+            }
+        }
+
+        result
+    }
+
+    // Fetch all DAOs created by a specific address
+    pub fn get_daos_by_creator(env: Env, creator: Address) -> Vec<(u64, Address)> {
+        let inst = env.storage().instance();
+        let map: Map<u64, Address> = inst
+            .get(&Bytes::from_slice(&env, b"daos"))
+            .unwrap_or(Map::new(&env));
+
+        let total = inst
+            .get(&Bytes::from_slice(&env, b"next_dao_id"))
+            .unwrap_or(0);
+        let mut result: Vec<(u64, Address)> = Vec::new(&env);
+
+        for i in 0..total {
+            if let Some(dao_address) = map.get(i) {
+                // Check if this DAO was created by the specified creator
+                let dao = DAOContractClient::new(&env, &dao_address);
+                if dao.get_creator() == creator {
+                    result.push_back((i, dao_address));
+                }
+            }
+        }
+
+        result
+    }
+
     // Fetch the list of all DAOs
     pub fn get_all_daos(env: Env) -> Vec<Address> {
         let inst = env.storage().instance();

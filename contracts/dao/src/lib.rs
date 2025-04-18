@@ -51,10 +51,20 @@ impl DAOContract {
             &Bytes::from_slice(&env, b"token_contract_id"),
             &token_contract_id,
         );
+        inst.set(
+            &Bytes::from_slice(&env, b"distribution_history"),
+            &Vec::<(u64, u64)>::new(&env),
+        );
     }
 
     // Accept funds, record the investor, and mint profit‐share tokens
     pub fn invest(env: Env, investor: Address, amount: u64) {
+        // Authenticate the investor
+        investor.require_auth();
+
+        // Check amount is positive
+        assert!(amount > 0, "Investment amount must be positive");
+
         let inst = env.storage().instance();
         // 1. Update total_raised
         let mut total: u64 = inst.get(&Bytes::from_slice(&env, b"total_raised")).unwrap();
@@ -115,7 +125,22 @@ impl DAOContract {
 
     // Vote yes/no weighted by token balance
     pub fn vote(env: Env, voter: Address, proposal_id: u64, support: bool) {
+        // Authenticate the voter
+        voter.require_auth();
+
+        // Check proposal exists
         let inst = env.storage().instance();
+        let pm: Map<u64, Symbol> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_details"))
+            .unwrap();
+        assert!(pm.contains_key(proposal_id), "Proposal does not exist");
+
+        // Check proposal not executed
+        let em: Map<u64, bool> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_executed"))
+            .unwrap();
+        assert!(!em.get(proposal_id).unwrap(), "Proposal already executed");
+
         // Fetch weight
         let token_address: Address = inst
             .get(&Bytes::from_slice(&env, b"token_contract_id"))
@@ -123,6 +148,10 @@ impl DAOContract {
 
         let token = ProfitTokenContractClient::new(&env, &token_address);
         let w: i128 = token.balance(&voter);
+
+        // Ensure voter has tokens
+        assert!(w > 0, "Voter has no voting power");
+
         // Tally
         let mut vm: Map<u64, i128> = inst
             .get(&Bytes::from_slice(&env, b"proposal_votes"))
@@ -136,6 +165,13 @@ impl DAOContract {
     // Execute if tally > 0 and not yet executed
     pub fn execute_proposal(env: Env, proposal_id: u64) {
         let inst = env.storage().instance();
+
+        // Check proposal exists
+        let pm: Map<u64, Symbol> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_details"))
+            .unwrap();
+        assert!(pm.contains_key(proposal_id), "Proposal does not exist");
+
         let mut em: Map<u64, bool> = inst
             .get(&Bytes::from_slice(&env, b"proposal_executed"))
             .unwrap();
@@ -162,6 +198,97 @@ impl DAOContract {
         // Mark proposal as executed
         em.set(proposal_id, true);
         inst.set(&Bytes::from_slice(&env, b"proposal_executed"), &em);
+    }
+
+    // Record a profit distribution event
+    pub fn record_distribution(env: Env, timestamp: u64, amount: u64) {
+        // Ensure only the profit distribution contract can call this
+        // This logic would need to be expanded based on your authorization model
+
+        let inst = env.storage().instance();
+        let mut history: Vec<(u64, u64)> = inst
+            .get(&Bytes::from_slice(&env, b"distribution_history"))
+            .unwrap();
+
+        history.push_back((timestamp, amount));
+        inst.set(&Bytes::from_slice(&env, b"distribution_history"), &history);
+    }
+
+    // Get distribution history
+    pub fn get_distribution_history(env: Env) -> Vec<(u64, u64)> {
+        env.storage()
+            .instance()
+            .get(&Bytes::from_slice(&env, b"distribution_history"))
+            .unwrap()
+    }
+
+    // Get all proposals
+    pub fn get_proposals_count(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&Bytes::from_slice(&env, b"next_proposal_id"))
+            .unwrap()
+    }
+
+    // Get proposal details
+    pub fn get_proposal_details(env: Env, proposal_id: u64) -> Symbol {
+        let inst = env.storage().instance();
+        let pm: Map<u64, Symbol> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_details"))
+            .unwrap();
+
+        assert!(pm.contains_key(proposal_id), "Proposal does not exist");
+        pm.get(proposal_id).unwrap()
+    }
+
+    // Get proposal votes
+    pub fn get_proposal_votes(env: Env, proposal_id: u64) -> i128 {
+        let inst = env.storage().instance();
+        let vm: Map<u64, i128> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_votes"))
+            .unwrap();
+
+        assert!(vm.contains_key(proposal_id), "Proposal does not exist");
+        vm.get(proposal_id).unwrap()
+    }
+
+    // Get proposal execution status
+    pub fn get_proposal_executed(env: Env, proposal_id: u64) -> bool {
+        let inst = env.storage().instance();
+        let em: Map<u64, bool> = inst
+            .get(&Bytes::from_slice(&env, b"proposal_executed"))
+            .unwrap();
+
+        assert!(em.contains_key(proposal_id), "Proposal does not exist");
+        em.get(proposal_id).unwrap()
+    }
+
+    // Get voting power for an address
+    pub fn get_voting_power(env: Env, voter: Address) -> i128 {
+        let inst = env.storage().instance();
+        let token_address: Address = inst
+            .get(&Bytes::from_slice(&env, b"token_contract_id"))
+            .unwrap();
+
+        let token = ProfitTokenContractClient::new(&env, &token_address);
+        token.balance(&voter)
+    }
+
+    // Get total raised funds
+    pub fn get_total_raised(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&Bytes::from_slice(&env, b"total_raised"))
+            .unwrap()
+    }
+
+    // Check if funding goal has been reached
+    pub fn is_funding_goal_reached(env: Env) -> bool {
+        let inst = env.storage().instance();
+        let total: u64 = inst.get(&Bytes::from_slice(&env, b"total_raised")).unwrap();
+        let goal: u64 = inst.get(&Bytes::from_slice(&env, b"funding_goal")).unwrap();
+
+        total >= goal
     }
 
     // Expose helpers for the distribution contract
