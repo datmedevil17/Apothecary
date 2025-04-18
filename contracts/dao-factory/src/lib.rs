@@ -66,7 +66,7 @@ impl DAOFactoryContract {
         let inst = env.storage().instance();
         let map: Map<u64, Address> =
             inst.get(&Bytes::from_slice(&env, b"daos")).unwrap_or(Map::new(&env));
-        let mut daos: Vec<Address> = Vec::new();
+        let mut daos: Vec<Address> = Vec::new(&env);
         for i in 0..map.len() {
             if let Some(dao) = map.get(i) {
                 daos.push(dao);
