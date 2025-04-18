@@ -1,7 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, symbol_short, vec, Address, Bytes, BytesN, Env, IntoVal, Map, Symbol,
-    Val, Vec,
+    contract, contractimpl, symbol_short, vec, Address, Bytes, Env, IntoVal, Map, Symbol, Vec,
 };
 
 // Import the profit‐token client
@@ -19,7 +18,7 @@ impl DAOContract {
         description: Symbol,
         funding_goal: u64,
         creator: Address,
-        token_contract_id: BytesN<32>,
+        token_contract_id: Address,
     ) {
         let inst = env.storage().instance();
         inst.set(&Bytes::from_slice(&env, b"name"), &name);
@@ -56,7 +55,7 @@ impl DAOContract {
 
     // Accept funds, record the investor, and mint profit‐share tokens
     pub fn invest(env: Env, investor: Address, amount: u64) {
-        let mut inst = env.storage().instance();
+        let inst = env.storage().instance();
         // 1. Update total_raised
         let mut total: u64 = inst.get(&Bytes::from_slice(&env, b"total_raised")).unwrap();
         total += amount;
@@ -77,10 +76,9 @@ impl DAOContract {
         }
 
         // 4. Mint profit‐share tokens
-        let token_id: BytesN<32> = inst
+        let token_address: Address = inst
             .get(&Bytes::from_slice(&env, b"token_contract_id"))
             .unwrap();
-        let token_address = Address::from_str(&env, "token_contract_id"); // Fixed: Added missing env parameter
         let token = ProfitTokenContractClient::new(&env, &token_address);
         token.mint(&investor, &(amount as i128));
     }
@@ -119,11 +117,10 @@ impl DAOContract {
     pub fn vote(env: Env, voter: Address, proposal_id: u64, support: bool) {
         let inst = env.storage().instance();
         // Fetch weight
-        let token_id: BytesN<32> = inst
+        let token_address: Address = inst
             .get(&Bytes::from_slice(&env, b"token_contract_id"))
             .unwrap();
 
-        let token_address = Address::from_str(&env, "token_contract_id"); // Fixed: Added missing env parameter
         let token = ProfitTokenContractClient::new(&env, &token_address);
         let w: i128 = token.balance(&voter);
         // Tally
@@ -136,7 +133,6 @@ impl DAOContract {
         inst.set(&Bytes::from_slice(&env, b"proposal_votes"), &vm);
     }
 
-    // Execute if tally > 0 and not yet executed
     // Execute if tally > 0 and not yet executed
     pub fn execute_proposal(env: Env, proposal_id: u64) {
         let inst = env.storage().instance();
@@ -175,12 +171,14 @@ impl DAOContract {
             .get(&Bytes::from_slice(&env, b"investors"))
             .unwrap()
     }
-    pub fn get_token_contract(env: Env) -> BytesN<32> {
+
+    pub fn get_token_contract(env: Env) -> Address {
         env.storage()
             .instance()
             .get(&Bytes::from_slice(&env, b"token_contract_id"))
             .unwrap()
     }
+
     pub fn get_investments(env: Env) -> Map<Address, u64> {
         env.storage()
             .instance()
@@ -195,18 +193,21 @@ impl DAOContract {
             .get(&Bytes::from_slice(&env, b"name"))
             .unwrap()
     }
+
     pub fn get_description(env: Env) -> Symbol {
         env.storage()
             .instance()
             .get(&Bytes::from_slice(&env, b"description"))
             .unwrap()
     }
+
     pub fn get_funding_goal(env: Env) -> u64 {
         env.storage()
             .instance()
             .get(&Bytes::from_slice(&env, b"funding_goal"))
             .unwrap()
     }
+
     pub fn get_creator(env: Env) -> Address {
         env.storage()
             .instance()
